@@ -8,7 +8,7 @@ namespace PresentTech.Controllers
     public class StartPageController : PageController<StartPage>
     {
         public IActionResult Index(StartPage currentPage)
-        {//testing
+        {
             return View(currentPage);
         }
     }
