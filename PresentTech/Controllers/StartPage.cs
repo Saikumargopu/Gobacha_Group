@@ -9,7 +9,7 @@ namespace PresentTech.Controllers
     {
         public IActionResult Index(StartPage currentPage)
         {
-            return View(currentPage);
+            return View(currentPage);//test
         }
     }
 }
