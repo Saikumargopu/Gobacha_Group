@@ -1,0 +1,90 @@
+name: Build and Deploy to Azure App Service (Windows)
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - feature/*   # any feature branch
+    paths:
+      - '.github/workflows/deploy.yml'   # triggers when workflow changes
+
+  workflow_dispatch:   # manual trigger with environment choice
+    inputs:
+      environment:
+        description: 'Choose environment(s) to deploy'
+        required: true
+        default: 'uat'
+        type: choice
+        options:
+          - dev
+          - uat
+          - both
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      DEPLOYMENT_VERSION: "1.0.0"   # bump this number to mark deployment version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup .NET (latest LTS)
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 'lts'
+
+      - name: Show deployment version
+        run: echo "Deployment version is $DEPLOYMENT_VERSION"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish -c Release -o ./publish
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-package-${{ env.DEPLOYMENT_VERSION }}
+          path: ./publish
+
+  deploy-dev:
+    needs: build
+    if: ${{ github.event.inputs.environment == 'dev' || github.event.inputs.environment == 'both' || github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/heads/feature/') }}
+    runs-on: windows-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: app-package-${{ env.DEPLOYMENT_VERSION }}
+
+      - name: Deploy to DEV
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: YOUR_DEV_APP_SERVICE_NAME
+          slot-name: Production
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_DEV }}
+          package: ./app-package-${{ env.DEPLOYMENT_VERSION }}
+
+  deploy-uat:
+    needs: build
+    if: ${{ github.event.inputs.environment == 'uat' || github.event.inputs.environment == 'both' || github.ref == 'refs/heads/main' }}
+    runs-on: windows-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: app-package-${{ env.DEPLOYMENT_VERSION }}
+
+      - name: Deploy to UAT
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: YOUR_UAT_APP_SERVICE_NAME
+          slot-name: Production
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_UAT }}
+          package: ./app-package-${{ env.DEPLOYMENT_VERSION }}
